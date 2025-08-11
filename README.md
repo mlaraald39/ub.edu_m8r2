@@ -38,7 +38,7 @@ Analizar la evolución histórica y las interrelaciones entre la tasa de fertili
 - **Interactividad y tablas**: `DT`, `htmltools`
 
 ## Estructura del Proyecto
-
+```
 ├── datos
 │   ├── GM-Fertility_rates_data-for-countries-etc-by-year.xlsx: Dataset tasa de fertilidad por país y año.
 │   ├── GM-Population_data-for-countries-etc-by-year.xlsx: Dataset habitantes por país y año.
@@ -51,6 +51,6 @@ Analizar la evolución histórica y las interrelaciones entre la tasa de fertili
 │   ├── informe_demografico.Rnw: Código del Informe Técnico Demográfico en tinytex/LaTex.
 │   └── eda.Rmd: Análisis de datos exploratorio (EDA).
 └── README.md: Documento explicativo del proyecto.
-
+```
 ---
 
