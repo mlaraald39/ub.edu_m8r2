@@ -1,0 +1,251 @@
+---
+title: "Análisis de datos exploratorio (EDA)"
+author: "M. Lara"
+date: "`r format(Sys.time(), '%d.%m.%Y')`"
+output:
+  html_document:
+    encoding: UTF-8
+---
+
+# Cargar librerías necesarias
+```{r warning=FALSE, message=FALSE}
+# Cargar librerías necesarias.
+# Lista de paquetes.
+pkg <- c(
+  "readxl", "dplyr", "tidyr", "writexl", "countrycode"
+)
+
+# Función para verificar e instalar paquetes.
+install_load_pkgs <- function(pkg) {
+  if (!requireNamespace(pkg, quietly=TRUE)) {
+    install.packages(pkg)
+  }
+  suppressPackageStartupMessages(library(pkg, character.only=TRUE))
+}
+
+# Aplicar la función sin imprimir resultados.
+invisible(lapply(pkg, install_load_pkgs))
+```
+
+# Definir los nombres de los datasets
+```{r}
+dataset1 <- "GM-Population_data-for-countries-etc-by-year.xlsx"
+dataset2 <- "GM-Fertility_rates_data-for-countries-etc-by-year.xlsx"
+dataset3 <- "life.expectancy.at.birth.xlsx"
+```
+
+# Cargar los datasets
+```{r}
+load_dataset <- function(filename) {
+  read_excel(file.path("../datos", filename))
+}
+
+df1 <- load_dataset(dataset1)
+df2 <- load_dataset(dataset2)
+df3 <- load_dataset(dataset3)
+```
+
+```{r}
+str(df1)
+```
+
+```{r}
+str(df2)
+```
+
+```{r}
+str(df3)
+```
+
+# Procesamiento de los datasets de Población, Fertilidad y Esperanza de Vida
+## Filtrar por años
+```{r}
+# Filtrar por años entre 1900 y 2024
+start_year <- 1900
+end_year <- 2024
+
+df1 <- df1 %>% filter(time >= start_year & time <= end_year)
+df2 <- df2 %>% filter(time >= start_year & time <= end_year)
+df3 <- df3 %>% filter(time >= start_year & time <= end_year)
+```
+
+```{r}
+str(df1)
+```
+
+```{r}
+str(df2)
+```
+
+```{r}
+str(df3)
+```
+
+## Renombrar columnas
+```{r}
+df1 <- df1 %>%
+  rename(CountryCode=geo, Country=name, Year=time) %>%
+  mutate(Year=as.integer(Year), Population=as.integer(Population))
+
+df2 <- df2 %>%
+  rename(CountryCode=geo, Country=name, Year=time, Babies="Babies per woman") %>%
+  mutate(Year=as.integer(Year))
+
+df3 <- df3 %>%
+  rename(CountryCode=geo, Country=name, Year=time, LifeExpectancy="Life expectancy") %>%
+  mutate(Year=as.integer(Year))
+```
+
+```{r}
+str(df1)
+```
+
+```{r}
+str(df2)
+```
+
+```{r}
+str(df3)
+```
+
+## Buscamos posibles nulos
+```{r}
+# Vemos que hay 24 nulos en la columna "Population".
+colSums(is.na(df1))
+```
+
+```{r}
+# Vemos que no hay nulos en df2.
+colSums(is.na(df2))
+```
+
+```{r}
+# Vemos que no hay nulos en df3.
+colSums(is.na(df3))
+```
+
+## Revisamos el contenido de los valores nulos
+```{r}
+# Notamos que hay un pais inexistente "Holy See".
+print(df1[is.na(df1$Population), ])
+```
+
+## Eliminar país "Holy See"
+```{r}
+df1 <- df1 %>% filter(Country!="Holy See")
+df2 <- df2 %>% filter(Country!="Holy See")
+df3 <- df3 %>% filter(Country!="Holy See")
+```
+
+```{r}
+str(df1)
+```
+
+```{r}
+str(df2)
+```
+
+```{r}
+str(df3)
+```
+## Paises con datos de habitantes disponibles solo desde 1950 en adelante
+```{r}
+# Sabemos que el archivo df3 tiene 500 registros menos que df2.
+# En el siguiente análisis identificamos que esta diferencia se debe a que ciertos países 
+# como: "Andorra", "Dominica", "Liechtenstein", "Marshall Islands", "Monaco", "Nauru", 
+# "Palau", "San Marino", "St. Kitts and Nevis" y "Tuvalu", solo tienen datos registrados a partir del año 1950.
+
+# Creamos una clave única por registro combinando código de país, nombre y año.
+df_temp2 <- df2 %>% mutate(key=paste(CountryCode, Country, Year, sep="_"))
+df_temp3 <- df3 %>% mutate(key=paste(CountryCode, Country, Year, sep="_"))
+
+# Filtramos los registros que están en df2 pero no en df3.
+df2_extra <- df_temp2 %>% filter(!(key %in% df_temp3$key)) %>% select(-key)
+
+# Exploramos los registros adicionales
+# Estructura del dataframe con registros extra
+str(df2_extra)
+# Lista de países con datos ausentes en df3 antes de 1950
+unique(df2_extra$Country)
+```
+
+## Agregar columna de continente
+```{r}
+# Utilizamos la librería countrycode para identificar con la variable CountryCode el nombre del continente.
+df1$Continent <- countrycode(df1$CountryCode, origin="iso3c", destination="continent")
+```
+
+```{r}
+str(df1)
+```
+## Verificar consistencia entre datasets
+```{r}
+# No hay inconsistencias.
+identical(sort(unique(df1$CountryCode)), sort(unique(df2$CountryCode)))
+identical(sort(unique(df1$Country)), sort(unique(df2$Country)))
+identical(sort(unique(df1$Year)), sort(unique(df2$Year)))
+```
+
+```{r}
+# No hay inconsistencias.
+identical(sort(unique(df1$CountryCode)), sort(unique(df3$CountryCode)))
+identical(sort(unique(df1$Country)), sort(unique(df3$Country)))
+identical(sort(unique(df1$Year)), sort(unique(df3$Year)))
+```
+
+## Verificamos si hay duplicados
+```{r}
+# No hay duplicados.
+sum(duplicated(df1))
+sum(duplicated(df2))
+sum(duplicated(df3))
+```
+
+## Unir datasets
+```{r}
+# Unir los tres datasets.
+merged_df_1_2_3 <- df1 %>%
+  inner_join(df2, by=c("CountryCode", "Country", "Year")) %>%
+  inner_join(df3, by=c("CountryCode", "Country", "Year")) %>%
+  mutate(Population=as.integer(Population))
+```
+
+```{r}
+str(merged_df_1_2_3)
+```
+
+## Buscamos posibles nulos
+```{r}
+colSums(is.na(merged_df_1_2_3))
+```
+
+```{r}
+# Notamos que hay filas con LifeExpectancy igual a 0, lo cual no tiene sentido.
+# Esos valores los vamos a poner como nulos.
+merged_df_1_2_3[merged_df_1_2_3$LifeExpectancy %in% c(0), ]
+```
+
+```{r}
+# Asignamos nulos a las celdas con el valor 0.
+merged_df_1_2_3$LifeExpectancy[merged_df_1_2_3$LifeExpectancy==0] <- NA
+# Vemos que ahora hay 1135 nulos en la columna "LifeExpectancy".
+colSums(is.na(merged_df_1_2_3))
+```
+
+```{r}
+# Eliminamos las filas con valores nulos.
+merged_df_1_2_3 <- na.omit(merged_df_1_2_3)
+# Vemos que ahora no hay nulos.
+colSums(is.na(merged_df_1_2_3))
+```
+
+```{r}
+str(merged_df_1_2_3)
+```
+
+# Guardar el dataset final procesado
+```{r}
+write_xlsx(merged_df_1_2_3, "../datos/merged_df_final.xlsx")
+```
+
+

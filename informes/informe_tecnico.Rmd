@@ -1,0 +1,117 @@
+---
+title: "Informe Técnico Demográfico"
+author: "Miguel Lara"
+date: "`r format(Sys.time(), '%d.%m.%Y')`"
+output:
+  html_document:
+    encoding: UTF-8
+---
+
+```{r setup, include=FALSE}
+# Función para aplicar formato europeo a números
+format_euro <- function(x) {
+  format(x, big.mark=".", decimal.mark=",", scientific=FALSE)
+}
+```
+
+## Cargar librerías necesarias.
+```{r warning=FALSE, message=FALSE}
+# Lista de paquetes.
+pkg <- c(
+  "readxl", "dplyr", "ggplot2", "knitr"
+)
+
+# Función para verificar e instalar paquetes.
+install_load_pkgs <- function(pkg) {
+  if(!require(pkg, character.only=TRUE)) {
+    install.packages(pkg)
+    library(pkg, character.only=TRUE)
+  }
+}
+
+# Aplicar la función sin imprimir resultados.
+invisible(lapply(pkg, install_load_pkgs))
+```
+
+
+## Resumen de Indicadores por Continente
+A continuación se muestra el código para generar una tabla con los valores agregados y el promedio de los principales indicadores demográficos por continente, correspondientes al año más reciente disponible en el dataset.
+```{r}
+# Cargar el dataset.
+df <- read_excel("../datos/merged_df_final.xlsx")
+
+# Filtrar el año más reciente.
+latest_year <- max(df$Year, na.rm=TRUE)
+df_latest <- df %>% filter(Year==latest_year)
+
+# Crear tabla resumen por continente
+summary_table <- df_latest %>%
+  group_by(Continent) %>%
+  summarise(
+    Total_Population=sum(Population, na.rm=TRUE),
+    Average_Fertility=round(mean(Babies, na.rm=TRUE), 2),
+    Average_LifeExpectancy=round(mean(LifeExpectancy, na.rm=TRUE), 2),
+    Number_of_Countries=n_distinct(Country)
+  ) %>%
+  mutate(across(where(is.numeric), format_euro))
+
+# Mostrar tabla en el informe.
+kable(summary_table, caption=paste("Indicadores demográficos por continente (", latest_year, ")"))
+
+# Guardar resultados.
+write.csv(summary_table, "summary_table.csv", row.names=FALSE)
+```
+
+## Relación entre Fertilidad y Esperanza de Vida
+Los siguientes gráficos muestran la relación entre la tasa de fertilidad (hijos por mujer) y la esperanza de vida (años) promedio por continente, correspondiente al año más reciente disponible en el dataset.
+
+En ambos gráficos, cada punto representa un continente. El primero es un gráfico de dispersión que permite visualizar de forma directa cómo se distribuyen los continentes en función de estos dos indicadores clave.
+```{r}
+# Crear gráfico de fertilidad vs esperanza de vida.
+colores_continentes <- c(
+  "Africa"="#1f77b4",
+  "Asia"="#ff7f0e",
+  "Europe"="#2ca02c",
+  "Americas"="#d62728",
+  "Oceania"="#9467bd"
+)
+
+ggplot(df_latest, aes(x=Babies, y=LifeExpectancy, fill=Continent)) +
+  geom_point(shape=21, size=4, alpha=0.7, color="black", stroke=0.5) +
+  scale_fill_manual(values=colores_continentes) +
+  labs(
+    title=paste("Relación entre fertilidad y esperanza de vida media (", latest_year, ")"),
+    x="Tasa de fertilidad (hijos por mujer)",
+    y=enc2utf8("Esperanza de vida (años)"),
+    fill="Continente"
+  ) +
+  theme_minimal()
+```
+
+El segundo gráfico añade una capa de densidad para resaltar visualmente las zonas de mayor concentración, aunque en este caso, al haber pocos puntos (uno por continente), su aporte es más estético que analítico.
+```{r}
+# Gráfico de densidad con colores por continente y sin leyenda gris
+ggplot(df_latest, aes(x=Babies, y=LifeExpectancy)) +
+  stat_density_2d(
+    aes(fill=Continent, alpha=after_stat(level)),
+    geom="polygon",
+    show.legend=FALSE
+  ) +
+  geom_point(aes(fill=Continent), size=4, alpha=0.7, shape=21, color="black") +
+  scale_fill_manual(values=colores_continentes) +
+  scale_alpha_continuous(range=c(0.1, 0.5), guide="none") +
+  labs(
+    title=paste("Relación entre fertilidad y esperanza de vida media (", latest_year, ")"),
+    x="Tasa de fertilidad (hijos por mujer)",
+    y=enc2utf8("Esperanza de vida (años)"),
+    fill="Continente"
+  ) +
+  theme_minimal()
+```
+
+## Análisis
+Se observa una **relación inversa** clara entre fertilidad y esperanza de vida: los continentes con menor tasa de fertilidad parecen tender a tener una mayor esperanza de vida. **Europa** destaca por tener la fertilidad más baja (1,44 hijos por mujer) y la mayor esperanza de vida (80,2 años), mientras que **África** presenta la fertilidad más alta (3,80) y la esperanza de vida más baja (66,78 años), reflejando una etapa temprana de transición demográfica.
+
+**Asia**, aunque tiene una fertilidad moderada (2,16), se posiciona en el gráfico con valores cercanos a cero en el eje de fertilidad y altos en el eje de esperanza de vida, lo que podría indicar que varios países asiáticos están en una fase avanzada de transición. **América** también muestra baja fertilidad (1,81) y alta esperanza de vida (76,29), mientras que **Oceanía** se ubica con fertilidad relativamente alta (2,83) y esperanza de vida intermedia (68,99), reflejando su diversidad interna.
+
+Estos patrones permiten visualizar de forma clara las diferencias estructurales entre continentes en términos de salud, desarrollo y dinámica poblacional.

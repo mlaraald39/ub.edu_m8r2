@@ -1,0 +1,434 @@
+---
+title: "Dashboard Demográfico Global"
+author: "M. Lara"
+date: "`r format(Sys.time(), '%d.%m.%Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+    theme: cosmo
+    source_code: embed
+runtime: shiny
+---
+```{r setup, include=FALSE}
+# Cargar librerías necesarias.
+# Lista de paquetes.
+pkg <- c(
+  "tidyverse", "dplyr", "flexdashboard", "shiny", 
+  "shinyWidgets", "plotly", "maps", "DT", "readxl",
+  "scales", "sf", "rnaturalearth", "rnaturalearthdata",
+  "countrycode", "leaflet", "htmltools"
+)
+
+# Función para verificar e instalar paquetes.
+install_load_pkgs <- function(pkg) {
+  if(!require(pkg, character.only=TRUE)) {
+    install.packages(pkg)
+    library(pkg, character.only=TRUE)
+  }
+}
+
+# Aplicar la función sin imprimir resultados.
+invisible(lapply(pkg, install_load_pkgs))
+```
+
+```{r, message=FALSE}
+# Cargar datos del archivo Excel con indicadores demográficos.
+df <- read_excel("../datos/merged_df_final.xlsx")
+```
+
+```{css, echo=FALSE}
+# Definición de stylesheets globales.
+h3 {
+  font-size: 14px;
+}
+```
+
+Gráficos {data-icon="fa-pie-chart"}
+=======================================================================
+Column {.sidebar data-width=300}
+-----------------------------------------------------------------------
+```{r}
+# Definición de inputs.
+selectInput(
+  "continent", 
+  label="Continente:", 
+  choices=c("TODOS", sort(unique(df$Continent))), 
+  selected="TODOS", 
+  width="200px"
+)
+selectInput(
+  "country", 
+  label="País:", 
+  choices=c("TODOS", sort(unique(df$Country))), 
+  selected="TODOS", 
+  width="200px"
+)
+sliderInput(
+  "year_range", 
+  "Rango de años:", 
+  min=min(df$Year), 
+  max=max(df$Year), 
+  value=c(1900, 2024), 
+  step=2,
+  sep=""
+)
+```
+
+```{r, context="server"}
+# Definición de eventos.
+# Cada vez que el usuario cambia el continente, el valor del input "country" se restablece automáticamente a "TODOS", sin necesidad de intervención del usuario.
+observeEvent(input$continent, {
+  if (input$country!="TODOS" & input$continent!="TODOS") { 
+    updateSelectInput(
+      session, 
+      "country", 
+      selected="TODOS"
+    ) 
+  } 
+})
+
+# Cada vez que el usuario selecciona un país, el input "continent" se restablece automáticamente a "TODOS".
+observeEvent(input$country, {
+  if (input$continent!="TODOS" & input$country!="TODOS") { 
+    updateSelectInput( 
+      session, 
+      inputId="continent", 
+      selected="TODOS" 
+    )
+  }
+})
+```
+
+```{r}
+# Definición de variables.
+# Filtro base por año.
+year_range_filter <- reactive({
+  df %>%
+    filter(Year >= input$year_range[1],
+           Year <= input$year_range[2])
+})
+
+# Filtro por año específico y continente.
+filtered_df <- reactive({
+  df_filtered <- df %>% filter(Year==input$selected_year)
+  if (input$continent!="TODOS") {
+    df_filtered <- df_filtered %>% filter(Continent==input$continent)
+  }
+  df_filtered
+})
+
+# Filtro por año en rango, continente y país (si aplica).
+filtered_etf <- reactive({
+  df_filtered <- year_range_filter()
+  if (input$continent!="TODOS") {
+    df_filtered <- df_filtered %>% filter(Continent==input$continent)
+  }
+  else if (input$country!="TODOS") {
+    df_filtered <- df_filtered %>% filter(Country==input$country)
+  }
+  df_filtered
+})
+
+# Filtro para top 10 países por fertilidad o esperanza de vida.
+filtered_10c <- reactive({
+  df_filtered <- year_range_filter()
+
+  if (input$continent!="TODOS") {
+    df_filtered <- df_filtered %>% filter(Continent==input$continent)
+  }
+  else if (input$country!="TODOS") {
+    # Obtener el continente del país seleccionado.
+    country_continent <- df %>%
+      filter(Country==input$country) %>%
+      pull(Continent) %>%
+      unique()
+
+    df_filtered <- df_filtered %>% filter(Continent==country_continent)
+  }
+
+  df_filtered
+})
+
+colores_continentes <- c(
+  "Africa"="#1f77b4",
+  "Asia"="#ff7f0e",
+  "Europe"="#2ca02c",
+  "Americas"="#d62728",
+  "Oceania"="#9467bd"
+)
+
+# Tema de ggplot para estandarizar los estilos de las fuentes de los gráficos.
+my_theme <- theme_minimal(base_size=12) +
+  theme(
+    axis.title=element_text(size=10, face="bold"),
+    axis.text=element_text(size=10),
+    legend.title=element_text(size=10, face="bold"),
+    legend.text=element_text(size=10),
+    plot.title=element_text(size=12, face="bold")
+  )
+```
+
+Row
+-----------------------------------------------------------------------
+### **Evolución de la tasa de fertilidad**: `r reactive(input$continent)` | `r reactive(input$country)` | (`r reactive(input$year_range[1])` - `r reactive(input$year_range[2])`)
+```{r}
+renderPlotly({
+  filtered_etf() %>% 
+    group_by(Year, Continent) %>%
+    summarise(Fertilidad=mean(Babies, na.rm=TRUE), .groups="drop") %>%
+    ggplot(aes(x=Year, y=Fertilidad, color=Continent)) +
+    geom_line(linewidth=0.7) +
+    scale_color_manual(values=colores_continentes) +
+    labs(x="Año",
+         y="Tasa de Fertilidad",
+         color="Continente") + 
+    my_theme
+})
+```
+
+### **Top 10 países con mayor tasa de fertilidad**: (`r reactive(input$year_range[1])` - `r reactive(input$year_range[2])`)
+```{r}
+renderPlot({
+  filtered_10c() %>%
+    group_by(Country, Continent) %>%
+    summarise(FertilidadPromedio=mean(Babies, na.rm=TRUE), .groups="drop") %>%
+    arrange(desc(FertilidadPromedio)) %>%
+    slice_head(n=10) %>%
+    ggplot(aes(x=FertilidadPromedio, y=reorder(Country, FertilidadPromedio), fill=Continent)) +
+    geom_bar(stat="identity") +
+    scale_fill_manual(values=colores_continentes) +
+    labs(x="Tasa de fertilidad promedio",
+         y="País",
+         color="Continente") +
+    theme_minimal() +
+    theme(
+      axis.title=element_text(size=12, face="bold"),
+      axis.text=element_text(size=12),
+    )
+})
+```
+
+Row
+-----------------------------------------------------------------------
+### **Esperanza de vida por continente**: `r reactive(input$continent)` | `r reactive(input$country)` | (`r reactive(input$year_range[1])` - `r reactive(input$year_range[2])`)
+```{r}
+renderPlotly({
+  filtered_etf() %>%
+    group_by(Year, Continent) %>%
+    summarise(EsperanzaVidaPromedio=mean(LifeExpectancy, na.rm=TRUE), .groups="drop") %>%
+    ggplot(aes(x=Year, y=EsperanzaVidaPromedio, color=Continent)) +
+    geom_line(linewidth=0.7) +
+    scale_color_manual(values=colores_continentes) +
+    labs(x="Año",
+         y="Esperanza de vida (años)",
+         color="Continente") +
+    my_theme
+})
+```
+
+### **Top 10 países con mayor esperanza de vida**: (`r reactive(input$year_range[1])` - `r reactive(input$year_range[2])`)
+```{r}
+renderPlot({
+  filtered_10c() %>%
+    group_by(Country, Continent) %>%
+    summarise(EsperanzaVidaPromedio=mean(LifeExpectancy, na.rm=TRUE), .groups="drop") %>%
+    arrange(desc(EsperanzaVidaPromedio)) %>%
+    slice_head(n=10) %>%
+    ggplot(aes(x=EsperanzaVidaPromedio, y=reorder(Country, EsperanzaVidaPromedio), fill=Continent)) +
+    geom_bar(stat="identity") +
+    scale_fill_manual(values=colores_continentes) +
+    labs(x="Esperanza de vida promedio",
+         y="País",
+         fill="Continente") +
+    theme_minimal() +
+    theme(
+      axis.title=element_text(size=12, face="bold"),
+      axis.text=element_text(size=12),
+    )
+})
+```
+
+Row
+-----------------------------------------------------------------------
+### **Fertilidad vs esperanza de Vida**: `r reactive(input$continent)` | `r reactive(input$country)` | (`r reactive(input$year_range[1])` - `r reactive(input$year_range[2])`)
+```{r}
+renderPlotly({
+  filtered_etf() %>%
+    ggplot(aes(x=Babies, y=LifeExpectancy, color=Continent, text=Country)) + 
+    geom_point(alpha=0.5) +
+    scale_color_manual(values=colores_continentes) +
+    labs(x="Tasa de Fertilidad", 
+         y="Esperanza de Vida",
+         fill="Continente",
+         color="Continente") + 
+    my_theme
+})
+```
+
+### **Crecimiento poblacional por continente**: `r reactive(input$continent)` | `r reactive(input$country)` | (`r reactive(input$year_range[1])` - `r reactive(input$year_range[2])`)
+```{r}
+renderPlotly({
+  filtered_etf() %>%
+    group_by(Year, Continent) %>%
+    summarise(PoblacionTotal=sum(Population, na.rm=TRUE), .groups="drop") %>%
+    ggplot(aes(x=Year, y=PoblacionTotal, fill=Continent)) +
+    geom_area(alpha=0.4, position='identity') +
+    geom_point(aes(text=paste0("Año: ", Year,
+                                 "<br>Población: ", scales::number(PoblacionTotal, big.mark="'"),
+                                 "<br>Continente: ", Continent)),
+               position=position_identity(), shape=21, size=1.5, fill="black", color="white") +
+    scale_fill_manual(values=colores_continentes) +
+    scale_y_continuous(labels=scales::label_number(scale_cut=scales::cut_si(""))) +
+    labs(x="Año",
+         y="Población total",
+         fill="Continente") +
+    my_theme -> p
+
+  ggplotly(p, tooltip="text")
+})
+```
+
+Mapa {data-icon="fa-map"}
+=======================================================================
+```{r}
+# Definicion de variables e inputs.
+# Definir rangos.
+population_ranges <- list(
+  "0-1M"=c(0, 1e6),
+  "1M-5M"=c(1e6 + 1, 5e6),
+  "5M-10M"=c(5e6 + 1, 1e7),
+  "10M-50M"=c(1e7 + 1, 5e7),
+  "50M-100M"=c(5e7 + 1, 1e8),
+  "100M-300M"=c(1e8 + 1, 3e8),
+  "300M-1B"=c(3e8 + 1, 1e9),
+  ">1B"=c(1e9 + 1, Inf)
+)
+
+# Colores fijos para cada rango (de claro a oscuro).
+range_colors <- c(
+  "0-1M"="#ffa600",
+  "1M-5M"="#ff7c43",
+  "5M-10M"="#f95d6a",
+  "10M-50M"="#d45087",
+  "50M-100M"="#a05195",
+  "100M-300M"="#665191",
+  "300M-1B"="#2f4b7c",
+  ">1B"="#000"
+)
+
+radioButtons(
+  "range_name", 
+  "Rango de población:",
+  choices=c("Todos", names(population_ranges)),
+  selected="Todos",
+  inline="TRUE"
+)
+
+sliderInput(
+  "selected_year", 
+  "Año:", 
+  min=min(df$Year, na.rm=TRUE), 
+  max=max(df$Year, na.rm=TRUE), 
+  value=max(df$Year, na.rm=TRUE), 
+  step=2,
+  sep="",
+  width="90%",
+  animate=TRUE
+)
+```
+
+Row {data-height=100}
+-----------------------------------------------------------------------
+### **Población**: `r reactive(input$continent)` (`r reactive(input$selected_year)`)
+```{r}
+df_latest <- reactive({
+  filtered_df() %>%
+    group_by(Country, CountryCode, Continent) %>%
+    summarise(
+      Population=mean(Population, na.rm=TRUE),
+      Babies=mean(Babies, na.rm=TRUE),
+      LifeExpectancy=mean(LifeExpectancy, na.rm=TRUE),
+      .groups="drop"
+    ) %>%
+    mutate(
+      Country=trimws(Country),
+      iso3=countrycode(Country, origin="country.name", destination="iso3c")
+    )
+})
+
+# Datos geográficos
+# Nota 1: Hay algunos países que no están bien marcados en el paquete "naturalearth".
+# Entre ellos están Francia y Noruega, por lo que hay que asegurarse de que formen parte de la variable "world".
+# Nota 2: Los valores "-99" parecen representar nulos en el paquete "rnaturalearth".
+# Nota 3: No todos los países o regiones que están en el paquete "rnaturalearth" están en el conjunto de datos de Gapminder/Población: http://gapm.io/dpop. Por ejemplo, Somaliland y Groenlandia.
+world <- ne_countries(scale="medium", returnclass="sf") %>%
+  mutate(iso_a3=case_when(
+    name=="France" ~ "FRA",
+    name=="Norway" ~ "NOR",
+    iso_a3=="-99" ~ NA_character_,
+    TRUE ~ iso_a3
+  ))
+
+renderLeaflet({
+  req(input$range_name)
+  
+  df_data <- df_latest()
+
+  # Asignar rango a cada país.
+  df_data$range <- sapply(df_data$Population, function(p) { 
+    for (r in names(population_ranges)) 
+    { 
+      if (p >= population_ranges[[r]][1] && p <= population_ranges[[r]][2]) 
+        return(r)
+    } 
+    return(NA)
+  }) 
+  
+  # Filtrar países según selección.
+  if (input$range_name=="Todos") {
+    filtered <- df_data %>% filter(!is.na(iso3), !is.na(range)) 
+  } else {
+      filtered <- df_data %>% filter(range==input$range_name, !is.na(iso3)) 
+  }
+
+  # Unir con geometría.
+  world_data <- world %>%
+    filter(iso_a3 %in% filtered$iso3) %>%
+    left_join(filtered, by=c("iso_a3"="iso3"))
+
+  # Asignar color exacto al rango seleccionado
+  world_data$fill_color <- range_colors[world_data$range]
+  
+  # Renderizar mapa con leaflet.
+  leaflet(world_data, 
+          options=leafletOptions(zoomControl=FALSE, 
+                                 minZoom=2.0, 
+                                 maxZoom=2.0, 
+                                 dragging=FALSE)
+          ) %>% 
+    addTiles() %>% 
+    addPolygons( 
+      fillColor=~fill_color,
+      fillOpacity=0.8, 
+      color="white", 
+      weight=0.5, 
+      label=~paste(
+        "País: <b>",
+        name, 
+        "</b><br>Población:", 
+        format(Population, big.mark="'", decimal.mark=",", scientific=FALSE)
+      ) %>% 
+      lapply(htmltools::HTML), 
+      highlightOptions=highlightOptions(weight=2, color="#666", fillOpacity=0.9) 
+    ) %>% 
+    addLegend(
+      "bottomleft", 
+      colors=unname(range_colors), 
+      labels=names(range_colors), 
+      title="Rangos de población", 
+      opacity=1
+    ) 
+})
+```
+
