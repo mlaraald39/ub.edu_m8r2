@@ -40,7 +40,7 @@ Analizar la evolución histórica y las interrelaciones entre la tasa de fertili
 ## Estructura del Proyecto
 ```
 ├── datos
-│   ├── \textbf{GM-Fertility_rates_data-for-countries-etc-by-year.xlsx}: Dataset tasa de fertilidad por país y año.
+│   ├── __GM-Fertility_rates_data-for-countries-etc-by-year.xlsx__: Dataset tasa de fertilidad por país y año.
 │   ├── `GM-Population_data-for-countries-etc-by-year.xlsx`: Dataset habitantes por país y año.
 │   ├── `life.expectancy.at.birth.xlsx`: Dataset tasa de vida por país y año.
 │   └── `merged_df_final.xlsx`: Dataset consolidado con datos históricos por continente, país y año.
