@@ -40,17 +40,17 @@ Analizar la evolución histórica y las interrelaciones entre la tasa de fertili
 ## Estructura del Proyecto
 ```
 ├── datos
-│   ├── __GM-Fertility_rates_data-for-countries-etc-by-year.xlsx__: Dataset tasa de fertilidad por país y año.
-│   ├── `GM-Population_data-for-countries-etc-by-year.xlsx`: Dataset habitantes por país y año.
-│   ├── `life.expectancy.at.birth.xlsx`: Dataset tasa de vida por país y año.
-│   └── `merged_df_final.xlsx`: Dataset consolidado con datos históricos por continente, país y año.
+│   ├── GM-Fertility_rates_data-for-countries-etc-by-year.xlsx: Dataset tasa de fertilidad por país y año.
+│   ├── GM-Population_data-for-countries-etc-by-year.xlsx: Dataset habitantes por país y año.
+│   ├── life.expectancy.at.birth.xlsx: Dataset tasa de vida por país y año.
+│   └── merged_df_final.xlsx: Dataset consolidado con datos históricos por continente, país y año.
 ├── dashboard
-│   └── `dashboard_demografico.Rmd`: Código del dashboard interactivo.
+│   └── dashboard_demografico.Rmd: Código del dashboard interactivo.
 ├── informes
-│   ├── `informe_tecnico.Rmd`: Informe Técnico Demográfico.
-│   ├── `informe_demografico.Rnw`: Código del Informe Técnico Demográfico en tinytex/LaTex.
-│   └── `eda.Rmd`: Análisis de datos exploratorio (EDA).
-└── `README.md`: Documento explicativo del proyecto.
+│   ├── informe_tecnico.Rmd: Informe Técnico Demográfico.
+│   ├── informe_demografico.Rnw: Código del Informe Técnico Demográfico en tinytex/LaTex.
+│   └── eda.Rmd: Análisis de datos exploratorio (EDA).
+└── README.md: Documento explicativo del proyecto.
 ```
 ---
 
