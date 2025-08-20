@@ -49,7 +49,7 @@ Analizar la evolución histórica y las interrelaciones entre la tasa de fertili
 ├── informes
 │   ├── informe_tecnico.Rmd: Informe Técnico Demográfico.
 │   ├── informe_demografico.Rnw: Código del Informe Técnico Demográfico en tinytex/LaTex.
-│   └── eda.Rmd: Análisis de datos exploratorio (EDA).
+│   └── eda.Rmd: Análisis exploratorio de datos (EDA).
 └── README.md: Documento explicativo del proyecto.
 ```
 ---
